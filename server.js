@@ -2,6 +2,7 @@
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 
 const app = express();
@@ -18,6 +19,9 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve static files (HTML, CSS, JS)
+app.use(express.static(path.join(__dirname, '.')));
 
 // Socket.IO Configuration with CORS
 const io = new Server(server, {
@@ -79,8 +83,13 @@ setInterval(cleanOldSessions, 60 * 60 * 1000);
 // REST API ENDPOINTS
 // ==========================================
 
-// Root endpoint - Health check
+// Serve index.html for root path
 app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Root endpoint - Health check
+app.get('/api', (req, res) => {
   res.json({
     status: 'ok',
     service: 'Live Path Tracker Backend',
@@ -591,7 +600,7 @@ server.listen(PORT, () => {
   console.log('═══════════════════════════════════════════════');
   console.log('');
   console.log('📋 Available endpoints:');
-  console.log(`   GET  ${PORT}/              - Service info`);
+  console.log(`   GET  ${PORT}/              - Frontend App`);
   console.log(`   GET  ${PORT}/health        - Health check`);
   console.log(`   POST ${PORT}/api/sessions  - Create session`);
   console.log(`   POST ${PORT}/api/locations - Add location`);
