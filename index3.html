@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📍 Live Location Tracker</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.95;
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .mode-btn {
+            padding: 15px 30px;
+            font-size: 1.1em;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            background: white;
+            color: #667eea;
+            font-weight: bold;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .mode-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+
+        .mode-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+
+        .section {
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            font-size: 1em;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #map, #trackMap {
+            width: 100%;
+            height: 500px;
+            border-radius: 10px;
+            margin-top: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .info-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            border-radius: 10px;
+            color: white;
+            text-align: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        .info-card .label {
+            font-size: 0.85em;
+            opacity: 0.9;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info-card .value {
+            font-size: 1.6em;
+            font-weight: bold;
+            word-break: break-word;
+        }
+
+        .tracking-id-display {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            padding: 25px;
+            border-radius: 10px;
+            text-align: center;
+            margin-top: 20px;
+            border: 3px solid #667eea;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .tracking-id-display::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #667eea);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .tracking-id-display .label {
+            font-size: 1em;
+            color: #667eea;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .tracking-id-display .id {
+            font-size: 2.2em;
+            font-weight: bold;
+            color: #667eea;
+            letter-spacing: 3px;
+            margin: 15px 0;
+            word-break: break-all;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .status {
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 15px;
+            text-align: center;
+            font-weight: 600;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .status.success {
+            background: #dcfce7;
+            color: #16a34a;
+            border: 2px solid #16a34a;
+        }
+
+        .status.error {
+            background: #fee2e2;
+            color: #dc2626;
+            border: 2px solid #dc2626;
+        }
+
+        .status.warning {
+            background: #fef3c7;
+            color: #d97706;
+            border: 2px solid #d97706;
+        }
+
+        .status.info {
+            background: #dbeafe;
+            color: #2563eb;
+            border: 2px solid #2563eb;
+        }
+
+        .copy-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 15px;
+            font-weight: bold;
+            font-size: 1em;
+            transition: all 0.3s;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .copy-btn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9em;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .connection-status.connected {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+
+        .connection-status.disconnected {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .pulse {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+            
+            .info-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .tracking-id-display .id {
+                font-size: 1.5em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status disconnected" id="connectionStatus">
+        <span class="pulse"></span>Connecting...
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>📍 Live Location Tracker</h1>
+            <p>Share your location or track someone in real-time with Google Maps</p>
+        </div>
+
+        <div class="mode-selector">
+            <button class="mode-btn active" onclick="switchMode('share')">📤 Share My Location</button>
+            <button class="mode-btn" onclick="switchMode('track')">🔍 Track Someone</button>
+        </div>
+
+        <!-- Share Location Section -->
+        <div id="shareSection" class="section active">
+            <div class="card">
+                <h2>📤 Share Your Location</h2>
+                <p style="color: #6b7280; margin: 10px 0 20px 0;">Start sharing your location and get a tracking ID to share with others</p>
+                
+                <button id="startSharingBtn" class="btn btn-primary" onclick="startSharing()">
+                    🚀 Start Sharing Location
+                </button>
+                <button id="stopSharingBtn" class="btn btn-danger" onclick="stopSharing()" style="display: none;">
+                    ⏹️ Stop Sharing
+                </button>
+
+                <div id="trackingIdDisplay" class="tracking-id-display" style="display: none;">
+                    <div class="label">🔑 Your Tracking ID</div>
+                    <div class="id" id="generatedId"></div>
+                    <button class="copy-btn" onclick="copyTrackingId()">📋 Copy Tracking ID</button>
+                    <p style="margin-top: 15px; color: #6b7280; font-size: 0.9em;">
+                        Share this ID with anyone who wants to track your location in real-time
+                    </p>
+                </div>
+
+                <div id="shareStatus"></div>
+
+                <div id="shareInfo" style="display: none;">
+                    <div class="info-grid">
+                        <div class="info-card">
+                            <div class="label">Latitude</div>
+                            <div class="value" id="shareLat">-</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="label">Longitude</div>
+                            <div class="value" id="shareLng">-</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="label">Altitude</div>
+                            <div class="value" id="shareAlt">-</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="label">Speed</div>
+                            <div class="value" id="shareSpeed">-</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="label">Accuracy</div>
+                            <div class="value" id="shareAcc">-</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="label">Updates Sent</div>
+                            <div class="value" id="shareUpdates">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="map" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Track Location Section -->
+        <div id="trackSection" class="section">
+            <div class="card">
+                <h2>🔍 Track Someone's Location</h2>
+                <p style="color: #6b7280; margin: 10px 0 20px 0;">Enter a tracking ID to see real-time location updates on the map</p>
+                
+                <div class="input-group">
+                    <label for="trackingIdInput">🔑 Tracking ID</label>
+                    <input type="text" id="trackingIdInput" placeholder="Enter tracking ID (e.g., TRK-ABC123)" style="text-transform: uppercase;">
+                </div>
+
+                <button id="startTrackingBtn" class="btn btn-primary" onclick="startTracking()">
+                    🎯 Start Tracking
+                </button>
+                <button id="stopTrackingBtn" class="btn btn-danger" onclick="stopTracking()" style="display: none;">
+                    ⏹️ Stop Tracking
+                </button>
+
+                <div id="trackStatus"></div>
+
+                <div id="trackInfo" style="display: none;">
+                    <div class="info-grid">
+                        <div class="info-card">
+                            <div class="label">Latitude</div>
+                            <div class="value" id="trackLat">-</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="label">Longitude</div>
+                            <div class="value" id="trackLng">-</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="label">Altitude</div>
+                            <div class="value" id="trackAlt">-</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="label">Speed</div>
+                            <div class="value" id="trackSpeed">-</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="label">Last Update</div>
+                            <div class="value" id="trackTime">-</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="label">Distance</div>
+                            <div class="value" id="trackDist">0 m</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="trackMap" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // CONFIGURATION - UPDATE YOUR BACKEND URL HERE
+        // ============================================
+        const BACKEND_URL = 'https://your-app-name.onrender.com'; // REPLACE WITH YOUR RENDER URL
+        const GOOGLE_MAPS_API_KEY = 'AIzaSyBIzSWZf5_mUlNO28CaP3vNY6a34s0zDbQ';
+        
+        // State
+        let socket = null;
+        let shareMap, trackMap;
+        let shareMarker, trackMarker;
+        let sharePath = [];
+        let trackPath = [];
+        let sharePolyline, trackPolyline;
+        let watchId = null;
+        let trackingId = null;
+        let currentTrackingId = null;
+        let isSharing = false;
+        let isTracking = false;
+        let updateCount = 0;
+        let totalDistance = 0;
+        let lastPosition = null;
+
+        // Load Google Maps API
+        function loadGoogleMaps() {
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}`;
+            script.async = true;
+            script.defer = true;
+            script.onload = () => {
+                console.log('✅ Google Maps loaded successfully');
+            };
+            script.onerror = () => {
+                console.error('❌ Failed to load Google Maps');
+                showStatus('shareStatus', '✗ Failed to load Google Maps', 'error');
+            };
+            document.head.appendChild(script);
+        }
+
+        loadGoogleMaps();
+
+        // Initialize Socket.IO connection
+        function initializeSocket() {
+            console.log('🔌 Connecting to:', BACKEND_URL);
+            
+            socket = io(BACKEND_URL, {
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+                reconnectionDelay: 1000,
+                reconnectionAttempts: 5
+            });
+
+            socket.on('connect', () => {
+                console.log('✅ Connected to backend');
+                updateConnectionStatus(true);
+            });
+
+            socket.on('disconnect', () => {
+                console.log('❌ Disconnected from backend');
+                updateConnectionStatus(false);
+            });
+
+            socket.on('joined', (data) => {
+                console.log('✅ Joined session:', data.sessionId);
+            });
+
+            socket.on('location_update', (data) => {
+                if (isTracking && data.sessionId === currentTrackingId) {
+                    console.log('📍 Received location update:', data);
+                    updateTrackLocation(data.location);
+                }
+            });
+
+            socket.on('session_info', (data) => {
+                console.log('ℹ️ Session info:', data);
+            });
+
+            socket.on('error', (error) => {
+                console.error('❌ Socket error:', error);
+                showStatus('shareStatus', `Error: ${error.message}`, 'error');
+            });
+
+            socket.on('connect_error', (error) => {
+                console.error('❌ Connection error:', error);
+                updateConnectionStatus(false);
+            });
+        }
+
+        initializeSocket();
+
+        function updateConnectionStatus(connected) {
+            const statusEl = document.getElementById('connectionStatus');
+            if (connected) {
+                statusEl.className = 'connection-status connected';
+                statusEl.innerHTML = '<span class="pulse"></span>Connected';
+            } else {
+                statusEl.className = 'connection-status disconnected';
+                statusEl.innerHTML = '<span class="pulse"></span>Disconnected';
+            }
+        }
+
+        function switchMode(mode) {
+            document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.section').forEach(section => section.classList.remove('active'));
+            
+            if (mode === 'share') {
+                document.querySelector('.mode-btn:first-child').classList.add('active');
+                document.getElementById('shareSection').classList.add('active');
+            } else {
+                document.querySelector('.mode-btn:last-child').classList.add('active');
+                document.getElementById('trackSection').classList.add('active');
+            }
+        }
+
+        function generateTrackingId() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let id = 'TRK-';
+            for (let i = 0; i < 6; i++) {
+                id += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return id;
+        }
+
+        function copyTrackingId() {
+            const id = document.getElementById('generatedId').textContent;
+            navigator.clipboard.writeText(id).then(() => {
+                showStatus('shareStatus', '✓ Tracking ID copied to clipboard!', 'success');
+                setTimeout(() => {
+                    document.getElementById('shareStatus').innerHTML = '';
+                }, 3000);
+            }).catch(() => {
+                showStatus('shareStatus', '✗ Failed to copy. Please copy manually.', 'error');
+            });
+        }
+
+        async function startSharing() {
+            if (!navigator.geolocation) {
+                showStatus('shareStatus', '✗ Geolocation is not supported by your browser', 'error');
+                return;
+            }
+
+            if (!socket || !socket.connected) {
+                showStatus('shareStatus', '✗ Not connected to server. Please wait and try again...', 'error');
+                return;
+            }
+
+            if (typeof google === 'undefined' || !google.maps) {
+                showStatus('shareStatus', '✗ Google Maps is still loading. Please wait a moment...', 'warning');
+                return;
+            }
+
+            try {
+                // Generate tracking ID
+                trackingId = generateTrackingId();
+                console.log('📝 Generated tracking ID:', trackingId);
+                
+                // Create session on backend
+                const response = await fetch(`${BACKEND_URL}/api/sessions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: trackingId,
+                        deviceInfo: navigator.userAgent,
+                        appVersion: '1.0.0'
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error('Failed to create session');
+                }
+
+                console.log('✅ Session created:', data.sessionId);
+                
+                // Join session room
+                socket.emit('join_session', trackingId);
+
+                document.getElementById('generatedId').textContent = trackingId;
+                document.getElementById('trackingIdDisplay').style.display = 'block';
+                document.getElementById('startSharingBtn').style.display = 'none';
+                document.getElementById('stopSharingBtn').style.display = 'block';
+                document.getElementById('shareInfo').style.display = 'block';
+
+                // Initialize map
+                const mapDiv = document.getElementById('map');
+                mapDiv.style.display = 'block';
+                
+                if (!shareMap) {
+                    shareMap = new google.maps.Map(mapDiv, {
+                        zoom: 15,
+                        center: { lat: 0, lng: 0 },
+                        mapTypeControl: true,
+                        streetViewControl: false,
+                        fullscreenControl: true
+                    });
+
+                    shareMarker = new google.maps.Marker({
+                        map: shareMap,
+                        icon: {
+                            path: google.maps.SymbolPath.CIRCLE,
+                            scale: 12,
+                            fillColor: '#4285F4',
+                            fillOpacity: 1,
+                            strokeColor: '#ffffff',
+                            strokeWeight: 4
+                        }
+                    });
+
+                    sharePolyline = new google.maps.Polyline({
+                        map: shareMap,
+                        strokeColor: '#4285F4',
+                        strokeWeight: 4,
+                        strokeOpacity: 0.8
+                    });
+                }
+
+                isSharing = true;
+                sharePath = [];
+                updateCount = 0;
+                lastPosition = null;
+
+                watchId = navigator.geolocation.watchPosition(
+                    (position) => {
+                        updateShareLocation(position);
+                    },
+                    (error) => {
+                        console.error('❌ GPS Error:', error);
+                        showStatus('shareStatus', `✗ GPS Error: ${error.message}`, 'error');
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0
+                    }
+                );
+
+                showStatus('shareStatus', '✓ Sharing location in real-time...', 'success');
+            } catch (error) {
+                console.error('❌ Error starting sharing:', error);
+                showStatus('shareStatus', `✗ Error: ${error.message}`, 'error');
+            }
+        }
+
+        function updateShareLocation(position) {
+            const { latitude, longitude, altitude, speed, accuracy, heading } = position.coords;
+            
+            updateCount++;
+            
+            // Update display
+            document.getElementById('shareLat').textContent = latitude.toFixed(6);
+            document.getElementById('shareLng').textContent = longitude.toFixed(6);
+            document.getElementById('shareAlt').textContent = altitude ? `${altitude.toFixed(1)} m` : 'N/A';
+            document.getElementById('shareSpeed').textContent = speed ? `${(speed * 3.6).toFixed(1)} km/h` : '0 km/h';
+            document.getElementById('shareAcc').textContent = `±${accuracy.toFixed(1)} m`;
+            document.getElementById('shareUpdates').textContent = updateCount;
+
+            // Update map
+            const location = { lat: latitude, lng: longitude };
+            shareMarker.setPosition(location);
+            shareMap.setCenter(location);
+            
+            sharePath.push(location);
+            sharePolyline.setPath(sharePath);
+
+            // Send to backend via WebSocket
+            console.log('📤 Sending location update:', { latitude, longitude });
+            socket.emit('send_location', {
+                sessionId: trackingId,
+                latitude,
+                longitude,
+                altitude: altitude || 0,
+                speed: speed || 0,
+                accuracy,
+                heading: heading || 0
+            });
+
+            lastPosition = position;
+        }
+
+        async function stopSharing() {
+            if (watchId) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+
+            if (trackingId) {
+                socket.emit('leave_session', trackingId);
+                
+                // End session on backend
+                try {
+                    await fetch(`${BACKEND_URL}/api/sessions/${trackingId}/end`, {
+                        method: 'PUT'
+                    });
+                } catch (error) {
+                    console.error('Error ending session:', error);
+                }
+            }
+
+            isSharing = false;
+            document.getElementById('startSharingBtn').style.display = 'block';
+            document.getElementById('stopSharingBtn').style.display = 'none';
+            showStatus('shareStatus', '⏸️ Sharing stopped', 'warning');
+        }
+
+        async function startTracking() {
+            const inputId = document.getElementById('trackingIdInput').value.trim().toUpperCase();
+            
+            if (!inputId) {
+                showStatus('trackStatus', '✗ Please enter a tracking ID', 'error');
+                return;
+            }
+
+            if (!socket || !socket.connected) {
+                showStatus('trackStatus', '✗ Not connected to server. Please wait and try again...', 'error');
+                return;
+            }
+
+            if (typeof google === 'undefined' || !google.maps) {
+                showStatus('trackStatus', '✗ Google Maps is still loading. Please wait a moment...', 'warning');
+                return;
+            }
+
+            try {
+                currentTrackingId = inputId;
+                console.log('🎯 Starting tracking for:', inputId);
+
+                // Join session room
+                socket.emit('join_session', inputId);
+
+                // Initialize map
+                const mapDiv = document.getElementById('trackMap');
+                mapDiv.style.display = 'block';
+                
+                if (!trackMap) {
+                    trackMap = new google.maps.Map(mapDiv, {
+                        zoom: 15,
+                        center: { lat: 0, lng: 0 },
+                        mapTypeControl: true,
+                        streetViewControl: false,
+                        fullscreenControl: true
+                    });
+
+                    trackMarker = new google.maps.Marker({
+                        map: trackMap,
+                        icon: {
+                            path: google.maps.SymbolPath.CIRCLE,
+                            scale: 12,
+                            fillColor: '#EA4335',
+                            fillOpacity: 1,
+                            strokeColor: '#ffffff',
+                            strokeWeight: 4
+                        }
+                    });
+
+                    trackPolyline = new google.maps.Polyline({
+                        map: trackMap,
+                        strokeColor: '#EA4335',
+                        strokeWeight: 4,
+                        strokeOpacity: 0.8
+                    });
+                }
+
+                document.getElementById('startTrackingBtn').style.display = 'none';
+                document.getElementById('stopTrackingBtn').style.display = 'block';
+                document.getElementById('trackInfo').style.display = 'block';
+                
+                isTracking = true;
+                trackPath = [];
+                totalDistance = 0;
+                
+                // Load initial location history
+                await loadLocationHistory(inputId);
+                
+                showStatus('trackStatus', '✓ Tracking active. Waiting for location updates...', 'info');
+            } catch (error) {
+                console.error('❌ Error starting tracking:', error);
+                showStatus('trackStatus', `✗ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadLocationHistory(sessionId) {
+            try {
+                console.log('📥 Loading location history for:', sessionId);
+                const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}/locations?limit=100`);
+                const data = await response.json();
+                
+                if (data.success && data.locations.length > 0) {
+                    console.log(`✅ Loaded ${data.locations.length} location points`);
+                    data.locations.forEach(loc => {
+                        updateTrackLocation(loc, false);
+                    });
+                } else {
+                    console.log('ℹ️ No location history found');
+                }
+            } catch (error) {
+                console.error('❌ Error loading history:', error);
+            }
+        }
+
+        function updateTrackLocation(data, showNotification = true) {
+            const { latitude, longitude, altitude, speed, timestamp, accuracy } = data;
+            
+            // Update display
+            document.getElementById('trackLat').textContent = latitude.toFixed(6);
+            document.getElementById('trackLng').textContent = longitude.toFixed(6);
+            document.getElementById('trackAlt').textContent = altitude ? `${altitude.toFixed(1)} m` : 'N/A';
+            document.getElementById('trackSpeed').textContent = speed ? `${(speed * 3.6).toFixed(1)} km/h` : '0 km/h';
+            
+            const timeDiff = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000);
+            document.getElementById('trackTime').textContent = timeDiff < 10 ? 'Just now' : `${timeDiff}s ago`;
+
+            // Update map
+            const location = { lat: latitude, lng: longitude };
+            trackMarker.setPosition(location);
+            trackMap.setCenter(location);
+            
+            // Calculate distance
+            if (trackPath.length > 0) {
+                const lastPos = trackPath[trackPath.length - 1];
+                const dist = calculateDistance(lastPos.lat, lastPos.lng, latitude, longitude);
+                totalDistance += dist;
+                document.getElementById('trackDist').textContent = totalDistance > 1000 
+                    ? `${(totalDistance / 1000).toFixed(2)} km` 
+                    : `${totalDistance.toFixed(0)} m`;
+            }
+            
+            trackPath.push(location);
+            trackPolyline.setPath(trackPath);
+
+            if (showNotification) {
+                console.log('📍 Location updated:', latitude, longitude);
+            }
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3;
+            const φ1 = lat1 * Math.PI / 180;
+            const φ2 = lat2 * Math.PI / 180;
+            const Δφ = (lat2 - lat1) * Math.PI / 180;
+            const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+            const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+            return R * c;
+        }
+
+        function stopTracking() {
+            if (currentTrackingId) {
+                socket.emit('leave_session', currentTrackingId);
+            }
+
+            isTracking = false;
+            currentTrackingId = null;
+            document.getElementById('startTrackingBtn').style.display = 'block';
+            document.getElementById('stopTrackingBtn').style.display = 'none';
+            showStatus('trackStatus', '⏸️ Tracking stopped', 'warning');
+        }
+
+        function showStatus(elementId, message, type) {
+            const statusDiv = document.getElementById(elementId);
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+            statusDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
